@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPI Performance Dashboard — FY 2024</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f4f0; --surface: #ffffff; --border: rgba(0,0,0,0.08);
+    --text-primary: #1a1a18; --text-secondary: #6b6b66; --text-muted: #9e9e99;
+    --blue: #185FA5; --blue-light: #E6F1FB;
+    --green: #3B6D11; --green-light: #EAF3DE;
+    --amber: #854F0B; --amber-light: #FAEEDA;
+    --red: #A32D2D; --red-light: #FCEBEB;
+    --radius: 10px; --radius-lg: 14px;
+  }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text-primary); min-height: 100vh; padding: 24px 32px; font-size: 14px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .header-left h1 { font-size: 22px; font-weight: 500; letter-spacing: -0.3px; }
+  .header-left p { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .badge { font-size: 11px; font-weight: 500; padding: 4px 12px; border-radius: 99px; background: var(--blue-light); color: var(--blue); }
+  .filter-tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 99px; padding: 3px; }
+  .tab { font-size: 11px; padding: 4px 14px; border-radius: 99px; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; transition: all 0.18s; font-family: 'DM Sans', sans-serif; font-weight: 400; }
+  .tab.active { background: var(--blue); color: #fff; }
+  .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .metric-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px 18px; transition: opacity 0.2s; }
+  .metric-card.dimmed { opacity: 0.3; }
+  .metric-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .metric-value { font-size: 26px; font-weight: 300; color: var(--text-primary); font-family: 'DM Mono', monospace; letter-spacing: -1px; }
+  .metric-delta { font-size: 11px; margin-top: 6px; }
+  .delta-up { color: var(--green); } .delta-dn { color: var(--red); } .delta-flat { color: var(--amber); }
+  .charts-row { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .card { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 20px; }
+  .card-title { font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
+  .card-sub { font-size: 11px; color: var(--text-muted); margin-bottom: 14px; }
+  .legend-row { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .full-card { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 20px; margin-bottom: 12px; }
+  .bottom-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .kpi-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .kpi-table th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); text-align: left; padding: 0 10px 10px 0; border-bottom: 1px solid var(--border); font-weight: 400; }
+  .kpi-table td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--border); color: var(--text-primary); vertical-align: middle; }
+  .kpi-table tr:last-child td { border-bottom: none; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 10px; font-weight: 500; }
+  .pill-green { background: var(--green-light); color: var(--green); }
+  .pill-amber { background: var(--amber-light); color: var(--amber); }
+  .bar-track { flex: 1; height: 4px; background: var(--bg); border-radius: 99px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 99px; }
+  .bar-cell { display: flex; align-items: center; gap: 8px; }
+  .insights-col { display: flex; flex-direction: column; gap: 10px; }
+  .insight { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 14px 16px; flex: 1; display: none; }
+  .insight.visible { display: block; }
+  .insight-tag { display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 99px; margin-bottom: 8px; }
+  .insight h4 { font-size: 12px; font-weight: 500; margin-bottom: 4px; color: var(--text-primary); }
+  .insight p { font-size: 11px; color: var(--text-secondary); line-height: 1.55; }
+  footer { border-top: 1px solid var(--border); padding-top: 16px; display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+  footer p { font-size: 11px; color: var(--text-muted); }
+  .footer-dots { display: flex; gap: 6px; }
+  .fdot { width: 6px; height: 6px; border-radius: 50%; }
+  .section-heading { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 10px; padding: 6px 0 4px; border-bottom: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>KPI Performance Dashboard</h1>
+    <p>Financial Year 2024 &nbsp;·&nbsp; Jan through Dec &nbsp;·&nbsp; All business units</p>
+  </div>
+  <div class="header-right">
+    <span class="badge">FY 2024</span>
+    <div class="filter-tabs">
+      <button class="tab active" onclick="setView('all',this)">All</button>
+      <button class="tab" onclick="setView('financial',this)">Financial</button>
+      <button class="tab" onclick="setView('ops',this)">Operations</button>
+      <button class="tab" onclick="setView('customer',this)">Customer</button>
+    </div>
+  </div>
+</header>
+
+<!-- SCORECARDS -->
+<div class="metrics-grid">
+  <div class="metric-card" id="sc-revenue">
+    <div class="metric-label">Total Revenue</div>
+    <div class="metric-value">$4.2M</div>
+    <div class="metric-delta delta-up">▲ 12.4% vs prior year</div>
+  </div>
+  <div class="metric-card" id="sc-efficiency">
+    <div class="metric-label">Operational Efficiency</div>
+    <div class="metric-value">87%</div>
+    <div class="metric-delta delta-up">▲ 5.1 pts improvement</div>
+  </div>
+  <div class="metric-card" id="sc-cost">
+    <div class="metric-label">Cost Variance</div>
+    <div class="metric-value">−3.2%</div>
+    <div class="metric-delta delta-up">▲ Under budget all year</div>
+  </div>
+  <div class="metric-card" id="sc-csat">
+    <div class="metric-label">Customer Satisfaction</div>
+    <div class="metric-value">4.6</div>
+    <div class="metric-delta delta-dn">▼ 0.1 below target of 4.7</div>
+  </div>
+</div>
+
+<!-- CHARTS ROW -->
+<div class="charts-row" id="chartsRow">
+  <div class="card">
+    <div class="card-title" id="mainChartTitle">Revenue vs target</div>
+    <div class="card-sub" id="mainChartSub">Monthly actual vs target ($K) — Jan to Dec 2024</div>
+    <div class="legend-row" id="mainChartLegend">
+      <div class="legend-item"><div class="legend-dot" style="background:#185FA5;"></div>Actual</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#B4B2A9;border:1px dashed #888;"></div>Target</div>
+    </div>
+    <div style="position:relative;width:100%;height:200px;">
+      <canvas id="mainChart" role="img" aria-label="Main chart">Chart data.</canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" id="secondChartTitle">Efficiency by department</div>
+    <div class="card-sub" id="secondChartSub">Score as % of maximum</div>
+    <div style="position:relative;width:100%;height:220px;">
+      <canvas id="secondChart" role="img" aria-label="Secondary chart">Chart data.</canvas>
+    </div>
+  </div>
+</div>
+
+<!-- VARIANCE / THIRD CHART -->
+<div class="full-card" id="thirdChartCard">
+  <div class="card-title" id="thirdChartTitle">Cost variance trend</div>
+  <div class="card-sub" id="thirdChartSub">Monthly % over or under budget — negative = under (good)</div>
+  <div class="legend-row" id="thirdChartLegend">
+    <div class="legend-item"><div class="legend-dot" style="background:#3B6D11;"></div>Under budget</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#A32D2D;"></div>Over budget</div>
+  </div>
+  <div style="position:relative;width:100%;height:130px;">
+    <canvas id="thirdChart" role="img" aria-label="Third chart">Chart data.</canvas>
+  </div>
+</div>
+
+<!-- BOTTOM ROW -->
+<div class="bottom-row">
+  <div class="card">
+    <div class="card-title">KPI summary</div>
+    <div class="card-sub" id="tableSubtitle">All metrics — actual vs target</div>
+    <table class="kpi-table">
+      <thead>
+        <tr>
+          <th style="width:30%">Metric</th>
+          <th style="width:14%">Actual</th>
+          <th style="width:14%">Target</th>
+          <th style="width:14%">Status</th>
+          <th style="width:28%">Progress</th>
+        </tr>
+      </thead>
+      <tbody id="kpiBody"></tbody>
+    </table>
+  </div>
+  <div class="insights-col" id="insightsCol">
+    <!-- insights rendered by JS -->
+  </div>
+</div>
+
+<footer>
+  <p>KPI Performance Dashboard &nbsp;·&nbsp; FY 2024 &nbsp;·&nbsp; Data sourced from operational and financial reporting systems</p>
+  <div class="footer-dots">
+    <div class="fdot" style="background:#185FA5;"></div>
+    <div class="fdot" style="background:#3B6D11;"></div>
+    <div class="fdot" style="background:#854F0B;"></div>
+  </div>
+</footer>
+
+<script>
+const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const actual = [290,310,340,360,330,380,400,420,390,410,440,430];
+const target = [300,320,330,350,360,370,380,390,400,410,420,430];
+const variance = [2.1,-1.3,-2.4,-0.8,1.2,-3.1,-4.2,-5.0,-2.8,-3.5,-4.1,-3.2];
+const gridCol = 'rgba(0,0,0,0.05)';
+const txtCol = '#9e9e99';
+
+const kpis = [
+  { name: 'Total Revenue',    cat: 'financial', actual: '$4.2M',    target: '$4.0M',   pct: 105, status: 'On Track' },
+  { name: 'Gross Margin',     cat: 'financial', actual: '38.4%',    target: '37.0%',   pct: 100, status: 'On Track' },
+  { name: 'OPEX Ratio',       cat: 'financial', actual: '24.1%',    target: '25.0%',   pct: 96,  status: 'On Track' },
+  { name: 'Op. Efficiency',   cat: 'ops',       actual: '87%',      target: '90%',     pct: 87,  status: 'At Risk'  },
+  { name: 'Cycle Time',       cat: 'ops',       actual: '4.2 days', target: '4.0 days',pct: 80,  status: 'At Risk'  },
+  { name: 'Defect Rate',      cat: 'ops',       actual: '1.8%',     target: '2.5%',    pct: 100, status: 'On Track' },
+  { name: 'Cost per Unit',    cat: 'ops',       actual: '$12.40',   target: '$13.00',  pct: 100, status: 'On Track' },
+  { name: 'CSAT',             cat: 'customer',  actual: '4.6/5',    target: '4.7/5',   pct: 82,  status: 'At Risk'  },
+  { name: 'Churn Rate',       cat: 'customer',  actual: '2.1%',     target: '3.0%',    pct: 100, status: 'On Track' },
+  { name: 'NPS Score',        cat: 'customer',  actual: '54',       target: '50',      pct: 100, status: 'On Track' },
+];
+
+const insights = {
+  all: [
+    { tag: 'Revenue', tagBg: '#EAF3DE', tagColor: '#3B6D11', title: 'November — best month of FY2024', body: 'Revenue hit $440K in November, 4.8% above target. Driven by product upsells and a strong end-of-quarter services close.' },
+    { tag: 'Customer', tagBg: '#FAEEDA', tagColor: '#854F0B', title: 'CSAT dip tied to volume spike', body: 'Satisfaction dipped to 4.5 in November when order volumes peaked. Slower support response times were the primary driver.' },
+    { tag: 'Costs', tagBg: '#E6F1FB', tagColor: '#185FA5', title: 'Cost management outperformed target', body: 'Annual average variance of −3.2% beat the −2.5% target. Procurement savings in Q4 were the largest single contributor.' },
+  ],
+  financial: [
+    { tag: 'Revenue', tagBg: '#EAF3DE', tagColor: '#3B6D11', title: 'Revenue exceeded target by 5%', body: 'Full year revenue of $4.2M beat the $4.0M target. Growth was consistent across all quarters with Q3 and Q4 as peak periods.' },
+    { tag: 'Margin', tagBg: '#E6F1FB', tagColor: '#185FA5', title: 'Gross margin up 1.4 pts YoY', body: 'Gross margin improved to 38.4% from 37.0% prior year, driven by better supplier contract terms and reduced material waste.' },
+    { tag: 'OPEX', tagBg: '#EAF3DE', tagColor: '#3B6D11', title: 'Operating expenses held under target', body: 'OPEX ratio of 24.1% came in below the 25.0% target, reflecting headcount discipline and reduced discretionary spend in H2.' },
+  ],
+  ops: [
+    { tag: 'Efficiency', tagBg: '#FAEEDA', tagColor: '#854F0B', title: 'Efficiency at 87% — below 90% target', body: 'Operational efficiency improved 5 pts year-over-year but fell short of the 90% goal. Logistics and Sales were the weakest departments.' },
+    { tag: 'Cycle Time', tagBg: '#FAEEDA', tagColor: '#854F0B', title: 'Cycle time slightly over target', body: 'Average cycle time of 4.2 days vs the 4.0-day target. Driven by Q3 supply chain delays which have since been resolved.' },
+    { tag: 'Quality', tagBg: '#EAF3DE', tagColor: '#3B6D11', title: 'Defect rate well below threshold', body: 'Defect rate of 1.8% significantly undercut the 2.5% target — a strong quality outcome driven by process controls added in Q1.' },
+  ],
+  customer: [
+    { tag: 'CSAT', tagBg: '#FAEEDA', tagColor: '#854F0B', title: 'CSAT at 4.6 — just below 4.7 target', body: 'Customer satisfaction was slightly below target all year. November dip to 4.5 during peak volumes was the lowest point.' },
+    { tag: 'Retention', tagBg: '#EAF3DE', tagColor: '#3B6D11', title: 'Churn well controlled at 2.1%', body: 'Churn rate of 2.1% beat the 3.0% target by a wide margin. Strong onboarding improvements in Q2 reduced early churn significantly.' },
+    { tag: 'NPS', tagBg: '#EAF3DE', tagColor: '#3B6D11', title: 'NPS of 54 exceeds 50-point target', body: 'Net Promoter Score of 54 is above target and above the industry benchmark of ~40 for comparable businesses.' },
+  ],
+};
+
+const chartConfigs = {
+  all: {
+    main: { title: 'Revenue vs target', sub: 'Monthly actual vs target ($K) — Jan to Dec 2024',
+      legend: `<div class="legend-item"><div class="legend-dot" style="background:#185FA5;"></div>Actual</div><div class="legend-item"><div class="legend-dot" style="background:#B4B2A9;border:1px dashed #888;"></div>Target</div>`,
+      type: 'bar', labels: months,
+      datasets: [
+        { label: 'Actual', data: actual, backgroundColor: '#185FA5', borderRadius: 4, barPercentage: 0.55 },
+        { label: 'Target', data: target, type: 'line', borderColor: '#B4B2A9', borderDash: [4,3], borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0.3 }
+      ],
+      scaleX: { ticks: { color: txtCol, font: { size: 10 }, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+      scaleY: { ticks: { color: txtCol, font: { size: 10 }, callback: v => '$'+v+'K' }, grid: { color: gridCol }, border: { display: false } }
+    },
+    second: { title: 'Efficiency by department', sub: 'Score as % of maximum',
+      type: 'bar', labels: ['Procurement','Production','Logistics','Finance','Sales'],
+      datasets: [{ data: [92,88,84,89,81], backgroundColor: ['#0F6E56','#185FA5','#3B6D11','#185FA5','#854F0B'], borderRadius: 4, barPercentage: 0.55 }],
+      indexAxis: 'y',
+      scaleX: { min: 70, max: 100, ticks: { color: txtCol, font: { size: 10 }, callback: v => v+'%' }, grid: { color: gridCol }, border: { display: false } },
+      scaleY: { ticks: { color: txtCol, font: { size: 11 } }, grid: { display: false }, border: { display: false } }
+    },
+    third: { title: 'Cost variance trend', sub: 'Monthly % over/under budget — negative = under (good)',
+      legend: `<div class="legend-item"><div class="legend-dot" style="background:#3B6D11;"></div>Under budget</div><div class="legend-item"><div class="legend-dot" style="background:#A32D2D;"></div>Over budget</div>`,
+      type: 'bar', labels: months,
+      datasets: [{ data: variance, backgroundColor: variance.map(v => v > 0 ? '#A32D2D' : '#3B6D11'), borderRadius: 3, barPercentage: 0.6 }],
+      scaleX: { ticks: { color: txtCol, font: { size: 10 }, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+      scaleY: { ticks: { color: txtCol, font: { size: 10 }, callback: v => v+'%' }, grid: { color: gridCol }, border: { display: false } }
+    }
+  },
+  financial: {
+    main: { title: 'Monthly revenue vs target', sub: 'Actual vs target ($K) — full year',
+      legend: `<div class="legend-item"><div class="legend-dot" style="background:#185FA5;"></div>Actual</div><div class="legend-item"><div class="legend-dot" style="background:#B4B2A9;border:1px dashed #888;"></div>Target</div>`,
+      type: 'bar', labels: months,
+      datasets: [
+        { label: 'Actual', data: actual, backgroundColor: '#185FA5', borderRadius: 4, barPercentage: 0.55 },
+        { label: 'Target', data: target, type: 'line', borderColor: '#B4B2A9', borderDash: [4,3], borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0.3 }
+      ],
+      scaleX: { ticks: { color: txtCol, font: { size: 10 }, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+      scaleY: { ticks: { color: txtCol, font: { size: 10 }, callback: v => '$'+v+'K' }, grid: { color: gridCol }, border: { display: false } }
+    },
+    second: { title: 'Financial KPIs vs target', sub: 'Actual as % of target',
+      type: 'bar', labels: ['Revenue', 'Gross Margin', 'OPEX Ratio'],
+      datasets: [{ data: [105, 104, 96], backgroundColor: ['#185FA5','#3B6D11','#3B6D11'], borderRadius: 4, barPercentage: 0.5 }],
+      scaleX: { ticks: { color: txtCol, font: { size: 11 } }, grid: { display: false }, border: { display: false } },
+      scaleY: { min: 80, max: 115, ticks: { color: txtCol, font: { size: 10 }, callback: v => v+'%' }, grid: { color: gridCol }, border: { display: false } }
+    },
+    third: { title: 'Cost variance by month', sub: 'Negative values = under budget (favourable)',
+      legend: `<div class="legend-item"><div class="legend-dot" style="background:#3B6D11;"></div>Under budget</div><div class="legend-item"><div class="legend-dot" style="background:#A32D2D;"></div>Over budget</div>`,
+      type: 'bar', labels: months,
+      datasets: [{ data: variance, backgroundColor: variance.map(v => v > 0 ? '#A32D2D' : '#3B6D11'), borderRadius: 3, barPercentage: 0.6 }],
+      scaleX: { ticks: { color: txtCol, font: { size: 10 }, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+      scaleY: { ticks: { color: txtCol, font: { size: 10 }, callback: v => v+'%' }, grid: { color: gridCol }, border: { display: false } }
+    }
+  },
+  ops: {
+    main: { title: 'Efficiency by department', sub: 'Score as % — target is 90%',
+      type: 'bar', labels: ['Procurement','Production','Logistics','Finance','Sales'],
+      datasets: [
+        { label: 'Actual', data: [92,88,84,89,81], backgroundColor: ['#3B6D11','#185FA5','#A32D2D','#185FA5','#A32D2D'], borderRadius: 4, barPercentage: 0.5 },
+        { label: 'Target', data: [90,90,90,90,90], type: 'line', borderColor: '#B4B2A9', borderDash: [4,3], borderWidth: 1.5, pointRadius: 0, fill: false }
+      ],
+      indexAxis: 'y',
+      legend: `<div class="legend-item"><div class="legend-dot" style="background:#185FA5;"></div>Actual</div><div class="legend-item"><div class="legend-dot" style="background:#B4B2A9;border:1px dashed #888;"></div>Target (90%)</div>`,
+      scaleX: { min: 70, max: 100, ticks: { color: txtCol, font: { size: 10 }, callback: v => v+'%' }, grid: { color: gridCol }, border: { display: false } },
+      scaleY: { ticks: { color: txtCol, font: { size: 11 } }, grid: { display: false }, border: { display: false } }
+    },
+    second: { title: 'Ops KPIs vs target', sub: 'Actual as % of target achieved',
+      type: 'bar', labels: ['Efficiency','Cycle Time','Defect Rate','Cost/Unit'],
+      datasets: [{ data: [87,80,100,100], backgroundColor: ['#854F0B','#A32D2D','#3B6D11','#3B6D11'], borderRadius: 4, barPercentage: 0.5 }],
+      scaleX: { ticks: { color: txtCol, font: { size: 10 } }, grid: { display: false }, border: { display: false } },
+      scaleY: { min: 60, max: 110, ticks: { color: txtCol, font: { size: 10 }, callback: v => v+'%' }, grid: { color: gridCol }, border: { display: false } }
+    },
+    third: { title: 'Cost per unit — monthly trend', sub: 'Actual cost vs $13.00 target per unit',
+      legend: `<div class="legend-item"><div class="legend-dot" style="background:#185FA5;"></div>Cost/unit</div><div class="legend-item"><div class="legend-dot" style="background:#B4B2A9;border:1px dashed #888;"></div>Target</div>`,
+      type: 'line', labels: months,
+      datasets: [
+        { label: 'Cost/unit', data: [13.1,12.9,12.8,12.7,12.6,12.5,12.4,12.3,12.4,12.4,12.3,12.4], borderColor: '#185FA5', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#185FA5', fill: false, tension: 0.4 },
+        { label: 'Target', data: Array(12).fill(13.0), borderColor: '#B4B2A9', borderDash: [4,3], borderWidth: 1.5, pointRadius: 0, fill: false }
+      ],
+      scaleX: { ticks: { color: txtCol, font: { size: 10 }, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+      scaleY: { min: 12, max: 13.5, ticks: { color: txtCol, font: { size: 10 }, callback: v => '$'+v.toFixed(1) }, grid: { color: gridCol }, border: { display: false } }
+    }
+  },
+  customer: {
+    main: { title: 'CSAT score — monthly trend', sub: 'Score out of 5 — target is 4.7',
+      legend: `<div class="legend-item"><div class="legend-dot" style="background:#185FA5;"></div>CSAT</div><div class="legend-item"><div class="legend-dot" style="background:#B4B2A9;border:1px dashed #888;"></div>Target (4.7)</div>`,
+      type: 'line', labels: months,
+      datasets: [
+        { label: 'CSAT', data: [4.7,4.6,4.6,4.7,4.5,4.6,4.6,4.7,4.6,4.6,4.5,4.6], borderColor: '#185FA5', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#185FA5', fill: false, tension: 0.4 },
+        { label: 'Target', data: Array(12).fill(4.7), borderColor: '#B4B2A9', borderDash: [4,3], borderWidth: 1.5, pointRadius: 0, fill: false }
+      ],
+      scaleX: { ticks: { color: txtCol, font: { size: 10 }, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+      scaleY: { min: 4.2, max: 5.0, ticks: { color: txtCol, font: { size: 10 }, callback: v => v.toFixed(1) }, grid: { color: gridCol }, border: { display: false } }
+    },
+    second: { title: 'Customer KPIs vs target', sub: 'Performance score',
+      type: 'bar', labels: ['CSAT','Churn Rate','NPS Score'],
+      datasets: [{ data: [82,100,100], backgroundColor: ['#854F0B','#3B6D11','#3B6D11'], borderRadius: 4, barPercentage: 0.5 }],
+      scaleX: { ticks: { color: txtCol, font: { size: 11 } }, grid: { display: false }, border: { display: false } },
+      scaleY: { min: 60, max: 115, ticks: { color: txtCol, font: { size: 10 }, callback: v => v+'%' }, grid: { color: gridCol }, border: { display: false } }
+    },
+    third: { title: 'NPS trend — monthly', sub: 'Net Promoter Score — target is 50',
+      legend: `<div class="legend-item"><div class="legend-dot" style="background:#185FA5;"></div>NPS</div><div class="legend-item"><div class="legend-dot" style="background:#B4B2A9;border:1px dashed #888;"></div>Target (50)</div>`,
+      type: 'line', labels: months,
+      datasets: [
+        { label: 'NPS', data: [48,50,51,52,53,54,55,56,54,55,56,54], borderColor: '#185FA5', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#185FA5', fill: false, tension: 0.4 },
+        { label: 'Target', data: Array(12).fill(50), borderColor: '#B4B2A9', borderDash: [4,3], borderWidth: 1.5, pointRadius: 0, fill: false }
+      ],
+      scaleX: { ticks: { color: txtCol, font: { size: 10 }, maxRotation: 0 }, grid: { display: false }, border: { display: false } },
+      scaleY: { min: 40, max: 65, ticks: { color: txtCol, font: { size: 10 } }, grid: { color: gridCol }, border: { display: false } }
+    }
+  }
+};
+
+const scorecardMap = {
+  all:      ['sc-revenue','sc-efficiency','sc-cost','sc-csat'],
+  financial:['sc-revenue','sc-cost'],
+  ops:      ['sc-efficiency','sc-cost'],
+  customer: ['sc-csat']
+};
+
+let mainChart, secondChart, thirdChart;
+
+function buildChart(canvasId, cfg) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  const opts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { x: cfg.scaleX, y: cfg.scaleY }
+  };
+  if (cfg.indexAxis) opts.indexAxis = cfg.indexAxis;
+  return new Chart(ctx, { type: cfg.type, data: { labels: cfg.labels, datasets: cfg.datasets }, options: opts });
+}
+
+function setView(view, btn) {
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  // scorecards
+  const active = scorecardMap[view];
+  ['sc-revenue','sc-efficiency','sc-cost','sc-csat'].forEach(id => {
+    document.getElementById(id).classList.toggle('dimmed', !active.includes(id));
+  });
+
+  // table
+  const rows = view === 'all' ? kpis : kpis.filter(k => k.cat === view);
+  const subtitles = { all: 'All metrics — actual vs target', financial: 'Financial metrics only', ops: 'Operations metrics only', customer: 'Customer metrics only' };
+  document.getElementById('tableSubtitle').textContent = subtitles[view];
+  document.getElementById('kpiBody').innerHTML = rows.map(k => `
+    <tr>
+      <td>${k.name}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;">${k.actual}</td>
+      <td style="color:#9e9e99;font-family:'DM Mono',monospace;font-size:11px;">${k.target}</td>
+      <td><span class="pill ${k.status === 'On Track' ? 'pill-green' : 'pill-amber'}">${k.status}</span></td>
+      <td><div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:${Math.min(k.pct,100)}%;background:${k.status === 'On Track' ? '#3B6D11' : '#BA7517'};"></div></div><span style="font-size:10px;color:#9e9e99;min-width:26px;text-align:right;">${k.pct}%</span></div></td>
+    </tr>
+  `).join('');
+
+  // insights
+  const ins = insights[view];
+  document.getElementById('insightsCol').innerHTML = ins.map(i => `
+    <div class="insight visible">
+      <span class="insight-tag" style="background:${i.tagBg};color:${i.tagColor};">${i.tag}</span>
+      <h4>${i.title}</h4>
+      <p>${i.body}</p>
+    </div>
+  `).join('');
+
+  // charts
+  const cfg = chartConfigs[view];
+  if (mainChart) mainChart.destroy();
+  if (secondChart) secondChart.destroy();
+  if (thirdChart) thirdChart.destroy();
+
+  document.getElementById('mainChartTitle').textContent = cfg.main.title;
+  document.getElementById('mainChartSub').textContent = cfg.main.sub;
+  document.getElementById('mainChartLegend').innerHTML = cfg.main.legend || '';
+  document.getElementById('secondChartTitle').textContent = cfg.second.title;
+  document.getElementById('secondChartSub').textContent = cfg.second.sub;
+  document.getElementById('thirdChartTitle').textContent = cfg.third.title;
+  document.getElementById('thirdChartSub').textContent = cfg.third.sub;
+  document.getElementById('thirdChartLegend').innerHTML = cfg.third.legend || '';
+
+  mainChart   = buildChart('mainChart',   cfg.main);
+  secondChart = buildChart('secondChart', cfg.second);
+  thirdChart  = buildChart('thirdChart',  cfg.third);
+}
+
+setView('all', document.querySelector('.tab.active'));
+</script>
+</body>
+</html>
